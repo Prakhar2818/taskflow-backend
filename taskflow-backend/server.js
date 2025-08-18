@@ -51,6 +51,7 @@ app.use(limiter);
 
 // ✅ FIXED CORS configuration with your actual frontend URL
 const allowedOrigins = [
+  process.env.CLIENT_URL,
   "http://localhost:3000",
   "http://localhost:3001",
   "http://127.0.0.1:3000",
