@@ -1,17 +1,22 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { protect } = require('../middleware/auth');
+const {
+  getTasks,
+  getTask,
+  createTask,
+  updateTask,
+  deleteTask,
+  addCompletionReport,
+} = require("../controllers/taskController");
 
-router.get('/test', (req, res) => {
-  res.json({ message: 'Task routes working!' });
-});
+const { protect } = require("../middleware/auth");
 
-router.get('/', protect, (req, res) => {
-  res.json({ message: 'Get tasks - placeholder' });
-});
+router.use(protect);
 
-router.post('/', protect, (req, res) => {
-  res.json({ message: 'Create task - placeholder' });
-});
+router.route("/").get(getTasks).post(createTask);
+
+router.route("/:id").get(getTask).put(updateTask).delete(deleteTask);
+
+router.post("/:id/reports", addCompletionReport);
 
 module.exports = router;

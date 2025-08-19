@@ -1,72 +1,29 @@
-// routes/sessions.js - WORKING VERSION
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { protect } = require('../middleware/auth');
+const {
+  getSessions,
+  getSession,
+  createSession,
+  updateSession,
+  deleteSession,
+  startSession,
+  completeSessionTask,
+  addSessionReport,
+  getSessionAnalytics,
+} = require("../controllers/sessionController");
 
-// Test route
-router.get('/test', (req, res) => {
-  res.json({ 
-    success: true,
-    message: 'Session routes are working!' 
-  });
-});
+const { protect } = require("../middleware/auth");
 
-// Basic CRUD routes with inline functions (no external controller needed)
-router.get('/', protect, (req, res) => {
-  res.json({ 
-    success: true,
-    message: 'Get sessions endpoint',
-    data: { sessions: [] }
-  });
-});
+router.use(protect);
 
-router.post('/', protect, (req, res) => {
-  res.json({ 
-    success: true,
-    message: 'Create session endpoint',
-    data: { session: req.body }
-  });
-});
+router.get("/analytics", getSessionAnalytics);
 
-router.get('/:id', protect, (req, res) => {
-  res.json({ 
-    success: true,
-    message: 'Get single session endpoint',
-    data: { sessionId: req.params.id }
-  });
-});
+router.route("/").get(getSessions).post(createSession);
 
-router.put('/:id', protect, (req, res) => {
-  res.json({ 
-    success: true,
-    message: 'Update session endpoint',
-    data: { sessionId: req.params.id, updates: req.body }
-  });
-});
+router.route("/:id").get(getSession).put(updateSession).delete(deleteSession);
 
-router.delete('/:id', protect, (req, res) => {
-  res.json({ 
-    success: true,
-    message: 'Delete session endpoint',
-    data: { sessionId: req.params.id }
-  });
-});
-
-// Additional session routes
-router.post('/:id/start', protect, (req, res) => {
-  res.json({
-    success: true,
-    message: 'Session started',
-    data: { sessionId: req.params.id }
-  });
-});
-
-router.post('/:id/complete', protect, (req, res) => {
-  res.json({
-    success: true,
-    message: 'Session completed',
-    data: { sessionId: req.params.id }
-  });
-});
+router.post("/:id/start", startSession);
+router.post("/:id/tasks/:taskIndex/complete", completeSessionTask);
+router.post(":id/report", addSessionReport);
 
 module.exports = router;
