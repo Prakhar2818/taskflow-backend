@@ -92,7 +92,7 @@ const getSession = async (req, res) => {
 // @access  Private
 const createSession = async (req, res) => {
   try {
-    const { name, tasks } = req.body;
+    const { name, description, tasks } = req.body;
 
     // Validate session data
     if (!name || !name.trim()) {
@@ -115,6 +115,7 @@ const createSession = async (req, res) => {
     const sessionData = {
       user: req.user._id,
       name: name.trim(),
+      description: description?.trim(),
       tasks: tasks.map(task => ({
         name: task.name,
         duration: task.duration,
@@ -155,6 +156,29 @@ const createSession = async (req, res) => {
 // @access  Private
 const updateSession = async (req, res) => {
   try {
+    // ✅ ADD DEBUG LOGGING
+    console.log('🔍 Update Session Debug:', {
+      paramsId: req.params.id,
+      paramsIdType: typeof req.params.id,
+      fullParams: req.params,
+      url: req.url,
+      method: req.method,
+      userId: req.user._id
+    });
+
+    // ✅ ADD VALIDATION
+    if (!req.params.id || req.params.id === 'undefined') {
+      return res.status(400).json({
+        success: false,
+        message: 'Session ID is required',
+        debug: {
+          receivedId: req.params.id,
+          params: req.params,
+          url: req.url
+        }
+      });
+    }
+
     const session = await Session.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
       { 
@@ -194,6 +218,7 @@ const updateSession = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('❌ Update session error:', error);
     res.status(400).json({
       success: false,
       message: 'Error updating session',
@@ -201,6 +226,7 @@ const updateSession = async (req, res) => {
     });
   }
 };
+
 
 // @desc    Start session
 // @route   POST /api/sessions/:id/start
