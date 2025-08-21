@@ -92,7 +92,7 @@ const getSession = async (req, res) => {
 // @access  Private
 const createSession = async (req, res) => {
   try {
-    const { name, description, tasks } = req.body;
+    const { name, tasks } = req.body;
 
     // Validate session data
     if (!name || !name.trim()) {
@@ -115,7 +115,6 @@ const createSession = async (req, res) => {
     const sessionData = {
       user: req.user._id,
       name: name.trim(),
-      description: description?.trim(),
       tasks: tasks.map(task => ({
         name: task.name,
         duration: task.duration,
