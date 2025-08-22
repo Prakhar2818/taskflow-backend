@@ -1,4 +1,4 @@
-// server.js - UPDATED WITH YOUR ACTUAL FRONTEND URL
+// server.js - FIXED FOR RENDER DEPLOYMENT
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -36,64 +36,109 @@ try {
 
 const app = express();
 
+// ✅ TRUST PROXY FOR RENDER
+app.set('trust proxy', 1);
+
 // Connect to database
 connectDB();
 
-// Security middleware
-app.use(helmet());
+// ✅ SIMPLIFIED HELMET CONFIGURATION (Render-friendly)
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  contentSecurityPolicy: false, // Disable CSP that might interfere with CORS
+}));
 
-// Rate limiting
+// Rate limiting (more lenient for production)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 200, // Increased limit
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 app.use(limiter);
 
-// ✅ FIXED CORS configuration with your actual frontend URL
+// ✅ SIMPLIFIED AND IMPROVED CORS CONFIGURATION
 const allowedOrigins = [
   process.env.CLIENT_URL,
   "http://localhost:5173",
   "http://localhost:5174",
+  "http://localhost:3000",
   "http://127.0.0.1:3000",
-  "https://taskflow-wheat.vercel.app", // ✅ Production domain
-  "https://taskflow-git-master-prakhars-projects-415595c3.vercel.app", // ✅ Git branch domain
-  "https://taskflow-pbcf7qenh-prakhars-projects-415595c3.vercel.app", // ✅ Deployment domain
+  "https://taskflow-wheat.vercel.app",
+  "https://taskflow-git-master-prakhars-projects-415595c3.vercel.app",
+  "https://taskflow-pbcf7qenh-prakhars-projects-415595c3.vercel.app",
 ];
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
+// ✅ MANUAL CORS HEADERS (More reliable on Render)
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Check if origin is allowed
+  const isAllowed = allowedOrigins.some(allowed => {
+    if (typeof allowed === 'string') {
+      return allowed === origin;
+    }
+    if (allowed instanceof RegExp) {
+      return allowed.test(origin);
+    }
+    return false;
+  });
 
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
+  if (isAllowed || !origin) { // Allow requests with no origin (mobile apps)
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization,Cache-Control,X-Access-Token');
+  res.header('Access-Control-Max-Age', '86400'); // Cache preflight for 24 hours
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
+// ✅ BACKUP CORS MIDDLEWARE (fallback)
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin
+    if (!origin) return callback(null, true);
+    
+    const isAllowed = allowedOrigins.some(allowed => {
+      if (typeof allowed === 'string') {
+        return allowed === origin;
       }
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: [
-      "Origin",
-      "X-Requested-With",
-      "Content-Type",
-      "Accept",
-      "Authorization",
-      "Cache-Control",
-      "X-Access-Token",
-    ],
-  })
-);
+      if (allowed instanceof RegExp) {
+        return allowed.test(origin);
+      }
+      return false;
+    });
+    
+    if (isAllowed) {
+      callback(null, true);
+    } else {
+      console.warn(`❌ CORS blocked origin: ${origin}`);
+      callback(null, false); // Don't throw error, just block
+    }
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: [
+    "Origin",
+    "X-Requested-With", 
+    "Content-Type",
+    "Accept",
+    "Authorization",
+    "Cache-Control",
+    "X-Access-Token",
+  ],
+  optionsSuccessStatus: 200,
+};
 
-// Handle preflight requests explicitly
-app.options(
-  "*",
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  })
-);
+app.use(cors(corsOptions));
 
 // Body parser middleware
 app.use(express.json({ limit: "10mb" }));
@@ -105,32 +150,61 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 // Logging middleware
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
+} else {
+  // Less verbose logging in production
+  app.use(morgan("combined"));
 }
+
+// ✅ ADD REQUEST LOGGING FOR DEBUGGING
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+  next();
+});
 
 // Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/sessions", sessionRoutes);
 
-// Health check
+// ✅ ENHANCED HEALTH CHECK
 app.get("/api/health", (req, res) => {
   res.json({
     success: true,
     message: "TaskFlow API is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
+    cors: {
+      origin: req.headers.origin,
+      allowed: allowedOrigins,
+    },
+  });
+});
+
+// ✅ ADD CORS TEST ENDPOINT
+app.get("/api/cors-test", (req, res) => {
+  res.json({
+    success: true,
+    message: "CORS is working!",
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Global error handler
 app.use((error, req, res, next) => {
   console.error("Global Error:", error);
-
-  res.status(error.statusCode || 500).json({
+  
+  // Don't expose stack traces in production
+  const response = {
     success: false,
     message: error.message || "Internal Server Error",
-    ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
-  });
+  };
+  
+  if (process.env.NODE_ENV === "development") {
+    response.stack = error.stack;
+  }
+
+  res.status(error.statusCode || 500).json(response);
 });
 
 // 404 handler
@@ -145,15 +219,22 @@ app.all("*", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-const server = app.listen(PORT, () => {
-  console.log(
-    `🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`
-  );
+const server = app.listen(PORT, "0.0.0.0", () => { // ✅ Bind to all interfaces
+  console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+  console.log(`🌐 Allowed origins:`, allowedOrigins);
+});
+
+// ✅ GRACEFUL SHUTDOWN
+process.on("SIGTERM", () => {
+  console.log("👋 SIGTERM received");
+  server.close(() => {
+    console.log("✅ Process terminated");
+  });
 });
 
 // Handle unhandled promise rejections
 process.on("unhandledRejection", (err, promise) => {
-  console.log(`Error: ${err.message}`);
+  console.log(`❌ Unhandled Rejection: ${err.message}`);
   server.close(() => {
     process.exit(1);
   });
