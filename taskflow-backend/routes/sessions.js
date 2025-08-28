@@ -24,6 +24,6 @@ router.route("/:id").get(getSession).put(updateSession).delete(deleteSession);
 
 router.post("/:id/start", startSession);
 router.post("/:id/tasks/:taskIndex/complete", completeSessionTask);
-router.post(":id/report", addSessionReport);
+router.post("/:id/report", addSessionReport);
 
 module.exports = router;
