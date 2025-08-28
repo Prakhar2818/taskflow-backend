@@ -1,4 +1,4 @@
-// models/Task.js
+// models/Task.js - UPDATED for required workspace
 const mongoose = require('mongoose');
 
 const taskSchema = new mongoose.Schema({
@@ -44,6 +44,29 @@ const taskSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  
+  // ✅ UPDATED: Workspace fields now REQUIRED
+  workspace: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Workspace',
+    required: true  // Every task MUST belong to a workspace
+  },
+  assignedTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true  // Every task is assigned to someone
+  },
+  assignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true  // Every task is assigned by someone
+  },
+  taskType: {
+    type: String,
+    enum: ['individual', 'collaborative'],
+    default: 'individual'  // individual = personal, collaborative = team
+  },
+  
   completionReports: [{
     completedAt: { type: Date, default: Date.now },
     isCompleted: Boolean,

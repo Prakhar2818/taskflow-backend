@@ -12,24 +12,30 @@ const getSessions = async (req, res) => {
       page = 1,
       limit = 10,
       status,
-      sortBy = "createdAt",
-      sortOrder = "desc",
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
     } = req.query;
 
-    // Build filter
-    const filter = { user: req.user._id };
+    const user = await User.findById(req.user._id);
+    if (!user.workspace) {
+      return res.status(400).json({
+        success: false,
+        message: 'User not assigned to any workspace.'
+      });
+    }
+
+    const filter = { user: req.user._id, workspace: user.workspace };
     if (status) filter.status = status;
 
-    // Build sort
     const sort = {};
-    sort[sortBy] = sortOrder === "desc" ? -1 : 1;
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
     const sessions = await Session.find(filter)
       .sort(sort)
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .populate("tasks.task", "name status priority") // Populate referenced tasks
-      .populate("user", "name email");
+      .limit(parseInt(limit))
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .populate('tasks.task', 'name status priority')
+      .populate('user', 'name email');
 
     const total = await Session.countDocuments(filter);
 
@@ -40,113 +46,127 @@ const getSessions = async (req, res) => {
         pagination: {
           current: parseInt(page),
           total: Math.ceil(total / limit),
-          hasNext: page < Math.ceil(total / limit),
-          hasPrev: page > 1,
+          hasNext: parseInt(page) < Math.ceil(total / limit),
+          hasPrev: parseInt(page) > 1,
           totalItems: total,
-        },
-      },
+        }
+      }
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error fetching sessions",
-      error: error.message,
+      message: 'Error fetching sessions',
+      error: error.message
     });
   }
 };
 
-// @desc    Get single session
-// @route   GET /api/sessions/:id
-// @access  Private
+
+// @desc    Get single session within workspace
 const getSession = async (req, res) => {
   try {
+    const user = await User.findById(req.user._id);
     const session = await Session.findOne({
       _id: req.params.id,
       user: req.user._id,
-    }).populate("tasks.task", "name status priority estimatedDuration");
+      workspace: user.workspace
+    }).populate('tasks.task', 'name status priority estimatedDuration');
 
     if (!session) {
       return res.status(404).json({
         success: false,
-        message: "Session not found",
+        message: 'Session not found'
       });
     }
 
     res.json({
       success: true,
-      data: {
-        session,
-      },
+      data: { session }
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: "Error fetching session",
-      error: error.message,
+      message: 'Error fetching session',
+      error: error.message
     });
   }
 };
 
-// @desc    Create new session
-// @route   POST /api/sessions
-// @access  Private
+// @desc    Create new session within workspace
 const createSession = async (req, res) => {
   try {
+    const user = await User.findById(req.user._id).populate('workspace');
+    if (!user.workspace) {
+      return res.status(400).json({
+        success: false,
+        message: 'User not assigned to any workspace.'
+      });
+    }
+
+    if (req.body.assignedTo && req.body.assignedTo !== req.user._id.toString()) {
+      const assignedUser = await User.findById(req.body.assignedTo);
+      if (!assignedUser || assignedUser.workspace.toString() !== user.workspace._id.toString()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Assigned user is not in your workspace.'
+        });
+      }
+    } else {
+      req.body.assignedTo = req.user._id;
+    }
+
     const { name, description, tasks } = req.body;
 
-    // Validate session data
     if (!name || !name.trim()) {
       return res.status(400).json({
         success: false,
-        message: "Session name is required",
+        message: 'Session name is required'
       });
     }
 
-    if (!tasks || tasks.length === 0) {
+    if (!Array.isArray(tasks) || tasks.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Session must have at least one task",
+        message: 'Session must have at least one task'
       });
     }
 
-    // Calculate total time from tasks
-    const totalTime = tasks.reduce((sum, task) => sum + task.duration * 60, 0);
+    const total = tasks.reduce((acc, task) => acc + (task.duration || 0), 0);
 
     const sessionData = {
       user: req.user._id,
+      workspace: user.workspace._id,
+      assignedTo: req.body.assignedTo,
+      assignedBy: req.user._id,
       name: name.trim(),
-      description: description?.trim(),
-      tasks: tasks.map((task) => ({
-        name: task.name,
-        duration: task.duration,
-        priority: task.priority || "medium",
+      description: description?.trim() || '',
+      tasks: tasks.map(task => ({
+        ...task,
         completed: false,
+        completedAt: null
       })),
-      totalTime,
-      completedTasks: 0,
-      status: "pending",
+      total,
+      status: 'pending'
     };
 
     const session = await Session.create(sessionData);
 
-    // Update user stats
+    await Workspace.findByIdAndUpdate(user.workspace._id, { $inc: { 'stats.totalSessions': 1 } });
     await User.findByIdAndUpdate(req.user._id, {
-      $inc: { "stats.totalSessions": 1 },
-      "stats.lastActive": new Date(),
+      $inc: { 'stats.totalSessions': 1 },
+      'stats.lastActive': new Date()
     });
 
     res.status(201).json({
       success: true,
-      message: "Session created successfully",
-      data: {
-        session,
-      },
+      message: 'Session created successfully',
+      data: { session }
     });
   } catch (error) {
     res.status(400).json({
       success: false,
-      message: "Error creating session",
-      error: error.message,
+      message: 'Error creating session',
+      error: error.message
     });
   }
 };

@@ -1,54 +1,57 @@
-// models/User.js
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+// models/User.js - UPDATED
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
 
 const userSchema = new mongoose.Schema({
   name: {
     type: String,
-    required: [true, 'Please provide a name'],
+    required: [true, "Please provide a name"],
     trim: true,
-    maxlength: [50, 'Name cannot be more than 50 characters']
+    maxlength: [50, "Name cannot be more than 50 characters"],
   },
   email: {
     type: String,
-    required: [true, 'Please provide an email'],
+    required: [true, "Please provide an email"],
     unique: true,
     lowercase: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email']
+    match: [
+      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+      "Please provide a valid email",
+    ],
   },
   password: {
     type: String,
-    required: [true, 'Please provide a password'],
-    minlength: [6, 'Password must be at least 6 characters'],
-    select: false
+    required: [true, "Please provide a password"],
+    minlength: [6, "Password must be at least 6 characters"],
+    select: false,
   },
   avatar: {
     type: String,
-    default: null
+    default: null,
   },
   role: {
     type: String,
-    enum: ['user', 'admin'],
-    default: 'user'
+    enum: ["user", "admin"],
+    default: "user",
   },
   preferences: {
     theme: {
       type: String,
-      enum: ['light', 'dark', 'system'],
-      default: 'light'
+      enum: ["light", "dark", "system"],
+      default: "light",
     },
     notifications: {
       type: Boolean,
-      default: true
+      default: true,
     },
     autoSave: {
       type: Boolean,
-      default: true
+      default: true,
     },
     timezone: {
       type: String,
-      default: 'UTC'
-    }
+      default: "UTC",
+    },
   },
   stats: {
     totalTasks: { type: Number, default: 0 },
@@ -56,55 +59,74 @@ const userSchema = new mongoose.Schema({
     totalSessions: { type: Number, default: 0 },
     totalFocusTime: { type: Number, default: 0 }, // in minutes
     streak: { type: Number, default: 0 },
-    lastActive: { type: Date, default: Date.now }
+    lastActive: { type: Date, default: Date.now },
   },
-  refreshTokens: [{
-    token: String,
-    createdAt: { type: Date, default: Date.now },
-    expiresAt: Date
-  }],
+
+  // ✅ UPDATED: Single workspace reference (not array)
+  workspace: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Workspace",
+    default: null  // null until manager adds them to workspace
+  },
+  workspaceRole: {
+    type: String,
+    enum: ["manager", "member"],
+    default: "member"
+  },
+  joinedWorkspaceAt: {
+    type: Date,
+    default: null
+  },
+
+  refreshTokens: [
+    {
+      token: String,
+      createdAt: { type: Date, default: Date.now },
+      expiresAt: Date,
+    },
+  ],
   isActive: {
     type: Boolean,
-    default: true
+    default: true,
   },
   emailVerified: {
     type: Boolean,
-    default: false
+    default: false,
   },
   lastLogin: Date,
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
   updatedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
 // Hash password before saving
-userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
 // Update timestamp on save
-userSchema.pre('save', function(next) {
+userSchema.pre("save", function (next) {
   this.updatedAt = Date.now();
   next();
 });
 
 // Compare password method
-userSchema.methods.comparePassword = async function(candidatePassword) {
+userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Clean expired refresh tokens
-userSchema.methods.cleanExpiredTokens = function() {
+userSchema.methods.cleanExpiredTokens = function () {
   this.refreshTokens = this.refreshTokens.filter(
-    tokenObj => tokenObj.expiresAt > new Date()
+    (tokenObj) => tokenObj.expiresAt > new Date()
   );
 };
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model("User", userSchema);
