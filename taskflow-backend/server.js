@@ -11,7 +11,7 @@ require("dotenv").config();
 const connectDB = require("./config/database");
 
 // Route imports with error handling
-let authRoutes, taskRoutes, sessionRoutes;
+let authRoutes, taskRoutes, sessionRoutes, workspaceRoutes;
 
 try {
   authRoutes = require("./routes/auth");
@@ -32,6 +32,13 @@ try {
 } catch (error) {
   console.error("❌ Session routes error:", error.message);
   sessionRoutes = express.Router();
+}
+
+try{
+  workspaceRoutes = require("./routes/workspace");
+} catch(error){
+  console.error("❌ Workspace routes error:", error.message);
+  workspaceRoutes = express.Router();
 }
 
 const app = express();
