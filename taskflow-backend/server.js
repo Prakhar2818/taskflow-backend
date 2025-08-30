@@ -165,6 +165,7 @@ app.use((req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/sessions", sessionRoutes);
+app.use("/api/workspaces", workspaceRoutes);
 
 // ✅ ENHANCED HEALTH CHECK
 app.get("/api/health", (req, res) => {
