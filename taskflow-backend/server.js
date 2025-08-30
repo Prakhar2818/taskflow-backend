@@ -58,7 +58,7 @@ app.use(helmet({
 // Rate limiting (more lenient for production)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // Increased limit
+  max: 1000, // Increased limit
   standardHeaders: true,
   legacyHeaders: false,
 });

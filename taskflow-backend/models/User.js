@@ -1,4 +1,4 @@
-// models/User.js - UPDATED
+// models/User.js - UPDATED FOR MULTIPLE WORKSPACES
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
@@ -57,24 +57,37 @@ const userSchema = new mongoose.Schema({
     totalTasks: { type: Number, default: 0 },
     completedTasks: { type: Number, default: 0 },
     totalSessions: { type: Number, default: 0 },
-    totalFocusTime: { type: Number, default: 0 }, // in minutes
+    totalFocusTime: { type: Number, default: 0 },
     streak: { type: Number, default: 0 },
     lastActive: { type: Date, default: Date.now },
   },
 
-  // ✅ UPDATED: Single workspace reference (not array)
-  workspace: {
+  // ✅ UPDATED: Support multiple workspaces
+  workspaces: [{
+    workspaceId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Workspace",
+      required: true
+    },
+    role: {
+      type: String,
+      enum: ["manager", "member"],
+      required: true
+    },
+    joinedAt: {
+      type: Date,
+      default: Date.now
+    },
+    isActive: {
+      type: Boolean,
+      default: true
+    }
+  }],
+
+  // ✅ ADD: Currently active workspace
+  currentWorkspace: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Workspace",
-    default: null  // null until manager adds them to workspace
-  },
-  workspaceRole: {
-    type: String,
-    enum: ["manager", "member"],
-    default: "member"
-  },
-  joinedWorkspaceAt: {
-    type: Date,
     default: null
   },
 
@@ -120,6 +133,45 @@ userSchema.pre("save", function (next) {
 // Compare password method
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// ✅ ADD: Helper methods for workspace management
+userSchema.methods.addWorkspace = function(workspaceId, role) {
+  const existingWorkspace = this.workspaces.find(w => 
+    w.workspaceId.toString() === workspaceId.toString()
+  );
+  
+  if (!existingWorkspace) {
+    this.workspaces.push({
+      workspaceId,
+      role,
+      joinedAt: new Date(),
+      isActive: true
+    });
+    
+    // Set as current workspace if it's the first one
+    if (!this.currentWorkspace) {
+      this.currentWorkspace = workspaceId;
+    }
+  }
+};
+
+userSchema.methods.removeWorkspace = function(workspaceId) {
+  this.workspaces = this.workspaces.filter(w => 
+    w.workspaceId.toString() !== workspaceId.toString()
+  );
+  
+  // If removed workspace was current, set to first available or null
+  if (this.currentWorkspace && this.currentWorkspace.toString() === workspaceId.toString()) {
+    this.currentWorkspace = this.workspaces.length > 0 ? this.workspaces[0].workspaceId : null;
+  }
+};
+
+userSchema.methods.getUserRoleInWorkspace = function(workspaceId) {
+  const workspace = this.workspaces.find(w => 
+    w.workspaceId.toString() === workspaceId.toString() && w.isActive
+  );
+  return workspace ? workspace.role : null;
 };
 
 // Clean expired refresh tokens

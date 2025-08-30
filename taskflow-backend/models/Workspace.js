@@ -1,5 +1,6 @@
-// models/Workspace.js - FIXED VERSION
+// models/Workspace.js - UPDATED WITH INVITE FUNCTIONALITY
 const mongoose = require("mongoose");
+const crypto = require('crypto');
 
 const workspaceSchema = new mongoose.Schema(
   {
@@ -9,20 +10,20 @@ const workspaceSchema = new mongoose.Schema(
       trim: true,
       maxlength: [100, "Workspace name cannot exceed 100 characters"]
     },
-    description: {  // ✅ FIXED: was "descryption"
+    description: {
       type: String,
       trim: true,
       maxlength: [500, "Description cannot exceed 500 characters"]
     },
-    owner: {  // ✅ FIXED: removed "new" keyword
+    owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true  // ✅ FIXED: was "reruired"
+      required: true
     },
-    members: [  // ✅ FIXED: was "member"
+    members: [
       {
         userId: {
-          type: mongoose.Schema.Types.ObjectId,  // ✅ FIXED: removed "new"
+          type: mongoose.Schema.Types.ObjectId,
           ref: "User",
           required: true,
         },
@@ -36,7 +37,7 @@ const workspaceSchema = new mongoose.Schema(
           default: Date.now,
         },
         addedBy: {
-          type: mongoose.Schema.Types.ObjectId,  // ✅ FIXED: removed "new"
+          type: mongoose.Schema.Types.ObjectId,
           ref: "User",
         },
         isActive: {
@@ -45,21 +46,32 @@ const workspaceSchema = new mongoose.Schema(
         }
       },
     ],
+    // ✅ ADD INVITE FUNCTIONALITY
+    inviteToken: { 
+      type: String, 
+      unique: true,
+      sparse: true // allows multiple null values
+    },
+    inviteTokenExpiry: Date,
+    inviteEnabled: { 
+      type: Boolean, 
+      default: true 
+    },
     settings: {
       allowSelfAssignment: { 
         type: Boolean, 
-        default: true  // Members can create their own tasks
+        default: true
       },
       requireApproval: { 
         type: Boolean, 
-        default: false  // Manager approval needed for tasks
+        default: false
       },
       autoReports: { 
         type: Boolean, 
-        default: true  // Auto-generate reports
+        default: true
       }
     },
-    stats: {  // ✅ UPDATED: Better stats structure
+    stats: {
       totalTasks: { type: Number, default: 0 },
       completedTasks: { type: Number, default: 0 },
       totalSessions: { type: Number, default: 0 },
@@ -85,6 +97,20 @@ workspaceSchema.pre('save', function(next) {
   next();
 });
 
+// ✅ ADD INVITE TOKEN METHODS
+workspaceSchema.methods.generateInviteToken = function() {
+  this.inviteToken = crypto.randomBytes(32).toString('hex');
+  this.inviteTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+  return this.inviteToken;
+};
+
+workspaceSchema.methods.isInviteTokenValid = function() {
+  return this.inviteEnabled && 
+         this.inviteToken && 
+         this.inviteTokenExpiry && 
+         this.inviteTokenExpiry > new Date();
+};
+
 // ✅ Helper methods
 workspaceSchema.methods.isMember = function(userId) {
   return this.members.some(m => 
@@ -100,7 +126,8 @@ workspaceSchema.methods.getMemberRole = function(userId) {
 };
 
 workspaceSchema.methods.isManager = function(userId) {
-  return this.getMemberRole(userId) === 'manager';
+  return this.getMemberRole(userId) === 'manager' || 
+         this.owner.toString() === userId.toString();
 };
 
 module.exports = mongoose.model("Workspace", workspaceSchema);
