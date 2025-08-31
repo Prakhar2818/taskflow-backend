@@ -1,4 +1,4 @@
-// server.js - FIXED FOR RENDER DEPLOYMENT
+// server.js - FIXED FOR RENDER DEPLOYMENT WITH MONGOOSE STRICTPOPULATE FIX
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -9,6 +9,9 @@ const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const connectDB = require("./config/database");
+
+// ✅ ADD: Global Mongoose Configuration (BEFORE connecting to database)
+mongoose.set('strictPopulate', false); // Prevents "Cannot populate path" errors
 
 // Route imports with error handling
 let authRoutes, taskRoutes, sessionRoutes, workspaceRoutes;
@@ -181,6 +184,10 @@ app.get("/api/health", (req, res) => {
     message: "TaskFlow API is running",
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
+    mongoose: {
+      strictPopulate: false, // ✅ ADD: Show mongoose config
+      connectionState: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    },
     cors: {
       origin: req.headers.origin,
       allowed: allowedOrigins,
@@ -230,6 +237,7 @@ const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, "0.0.0.0", () => { // ✅ Bind to all interfaces
   console.log(`🚀 Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
   console.log(`🌐 Allowed origins:`, allowedOrigins);
+  console.log(`🔧 Mongoose strictPopulate: false`); // ✅ ADD: Log mongoose config
 });
 
 // ✅ GRACEFUL SHUTDOWN

@@ -126,7 +126,7 @@ const getSession = async (req, res) => {
     const session = await Session.findOne({
       _id: req.params.id,
       user: req.user._id,
-      workspace: user.workspace
+      workspace: user.currentWorkspace
     }).populate('tasks.task', 'name status priority estimatedDuration');
 
     if (!session) {
@@ -152,8 +152,8 @@ const getSession = async (req, res) => {
 // @desc    Create new session within workspace
 const createSession = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).populate('workspace');
-    if (!user.workspace) {
+    const user = await User.findById(req.user?._id).populate('workspace');
+    if (!user.currentWorkspace) {
       return res.status(400).json({
         success: false,
         message: 'User not assigned to any workspace.'
@@ -162,7 +162,7 @@ const createSession = async (req, res) => {
 
     if (req.body.assignedTo && req.body.assignedTo !== req.user._id.toString()) {
       const assignedUser = await User.findById(req.body.assignedTo);
-      if (!assignedUser || assignedUser.workspace.toString() !== user.workspace._id.toString()) {
+      if (!assignedUser || assignedUser.currentWorkspace.toString() !== user.currentWorkspace._id.toString()) {
         return res.status(400).json({
           success: false,
           message: 'Assigned user is not in your workspace.'
@@ -192,7 +192,7 @@ const createSession = async (req, res) => {
 
     const sessionData = {
       user: req.user._id,
-      workspace: user.workspace._id,
+      workspace: user.currentWorkspace._id,
       assignedTo: req.body.assignedTo,
       assignedBy: req.user._id,
       name: name.trim(),
@@ -208,7 +208,7 @@ const createSession = async (req, res) => {
 
     const session = await Session.create(sessionData);
 
-    await Workspace.findByIdAndUpdate(user.workspace._id, { $inc: { 'stats.totalSessions': 1 } });
+    await Workspace.findByIdAndUpdate(user.currentWorkspace._id, { $inc: { 'stats.totalSessions': 1 } });
     await User.findByIdAndUpdate(req.user._id, {
       $inc: { 'stats.totalSessions': 1 },
       'stats.lastActive': new Date()

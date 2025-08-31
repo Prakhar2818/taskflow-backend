@@ -33,6 +33,8 @@ const sessionSchema = new mongoose.Schema({
       },
       completed: { type: Boolean, default: false },
       completedAt: Date,
+      wasDelayed: { type: Boolean, default: false },
+      taskStatus: { type: String, default: 'Pending' }
     },
   ],
   status: {
@@ -41,7 +43,7 @@ const sessionSchema = new mongoose.Schema({
     default: "pending",
   },
 
-  // ✅ UPDATED: Workspace fields now REQUIRED
+  // ✅ WORKSPACE FIELDS - REQUIRED
   workspace: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Workspace",
@@ -63,11 +65,12 @@ const sessionSchema = new mongoose.Schema({
     default: 'individual'  // individual = personal, collaborative = team
   },
 
-  totalTime: Number, // in seconds
-  actualTime: Number, // in seconds
+  totalTime: Number, // in minutes (changed from seconds for consistency)
+  actualTime: Number, // in minutes (changed from seconds for consistency)
   completedTasks: { type: Number, default: 0 },
   startedAt: Date,
   completedAt: Date,
+  
   taskReports: [
     {
       taskId: mongoose.Schema.Types.ObjectId,
@@ -77,22 +80,15 @@ const sessionSchema = new mongoose.Schema({
       reason: String,
       notes: String,
       reportedAt: { type: Date, default: Date.now },
+      wasDelayed: { type: Boolean, default: false },
+      taskStatus: String,
     },
   ],
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-  updatedAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
-
-// Update timestamp on save
-sessionSchema.pre("save", function (next) {
-  this.updatedAt = Date.now();
-  next();
+}, {
+  timestamps: true, // ✅ ADD: Use built-in timestamps
+  strictPopulate: false, // ✅ ADD: Disable strict populate to avoid errors
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
 // Calculate completion rate
@@ -106,8 +102,5 @@ sessionSchema.virtual("efficiency").get(function () {
   if (!this.totalTime || !this.actualTime) return 0;
   return Math.round((this.totalTime / this.actualTime) * 100);
 });
-
-sessionSchema.set("toJSON", { virtuals: true });
-sessionSchema.set("toObject", { virtuals: true });
 
 module.exports = mongoose.model("Session", sessionSchema);
