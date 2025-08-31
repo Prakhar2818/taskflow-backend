@@ -1,11 +1,14 @@
 // controllers/sessionController.js
+const mongoose = require("mongoose");
 const Session = require("../models/Session");
 const User = require("../models/User");
-const Task = require("../models/Task"); // If you need to reference tasks
+const Workspace = require("../models/Workspace");
 
 // @desc    Get all sessions for user
 // @route   GET /api/sessions
 // @access  Private
+
+// Add this function to sessionController.js
 const getSessions = async (req, res) => {
   try {
     const {
@@ -17,14 +20,14 @@ const getSessions = async (req, res) => {
     } = req.query;
 
     const user = await User.findById(req.user._id);
-    if (!user.workspace) {
+    if (!user.currentWorkspace) {
       return res.status(400).json({
         success: false,
         message: 'User not assigned to any workspace.'
       });
     }
 
-    const filter = { user: req.user._id, workspace: user.workspace };
+    const filter = { user: req.user._id, workspace: user.currentWorkspace };
     if (status) filter.status = status;
 
     const sort = {};
@@ -57,6 +60,60 @@ const getSessions = async (req, res) => {
       success: false,
       message: 'Error fetching sessions',
       error: error.message
+    });
+  }
+};
+
+const getWorkspaceSessions = async (req, res) => {
+  try {
+    const { workspaceId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(workspaceId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid workspace ID",
+      });
+    }
+
+    // Check if user has access to this workspace
+    const workspace = await Workspace.findById(workspaceId);
+    if (!workspace) {
+      return res.status(404).json({
+        success: false,
+        message: "Workspace not found",
+      });
+    }
+
+    const isMember = workspace.members.some(m => 
+      m.userId.toString() === req.user._id.toString() && m.isActive
+    );
+    const isOwner = workspace.owner.toString() === req.user._id.toString();
+
+    if (!isMember && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        message: "Access denied",
+      });
+    }
+
+    // Get sessions for this workspace
+    const sessions = await Session.find({ 
+      workspace: workspaceId 
+    }).populate('user', 'name email')
+      .populate('tasks.task', 'name status priority')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: { sessions },
+      message: "Workspace sessions retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Get workspace sessions error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to retrieve workspace sessions",
+      error: error.message,
     });
   }
 };
@@ -533,6 +590,7 @@ const getSessionAnalytics = async (req, res) => {
 
 module.exports = {
   getSessions,
+  getWorkspaceSessions,
   getSession,
   createSession,
   updateSession,
